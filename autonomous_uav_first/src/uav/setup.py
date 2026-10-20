@@ -24,7 +24,9 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'img = uav.img_process:main'
+            'img = uav.img_process:main',
+            'move = uav.uav_movement:main',
+            'cal = uav.uav_calculation:main'
         ],
     },
 )

@@ -79,20 +79,21 @@ class UAVMovement(Node):
     def reached_target(self):
         return self.calculate_distance(self.local_pos, self.end_point) <= self.distance
 
-    def move_to_target(self, Request, Response):
-        Response.success = True
+    def move_to_target(self, request, response):
+        response.success = True
         if self.is_task_completed:
             if self.reached_target():
                 self.complete_task()
                 
-                return Response
+                return response
             
             self.start_task()
-            self.move(Request.point)
+            self.move(request.point)
 
-        return Response
+        return response
 
-    
+    def move(self, point: PoseStamped):
+        self.end_point = point
 
 def main(args=None):
     rclpy.init()

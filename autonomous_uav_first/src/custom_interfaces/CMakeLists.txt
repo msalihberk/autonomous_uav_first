@@ -6,10 +6,12 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(rosidl_default_generators REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "srv/MovePoint"
-  "msg/CamData"
+  "srv/MovePoint.srv"
+  "msg/CamData.msg"
+  DEPENDENCIES std_msgs builtin_interfaces geometry_msgs
 )
 # find dependencies
 find_package(ament_cmake REQUIRED)
