@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'img = img_process:main'
+            'img = uav.img_process:main'
         ],
     },
 )
