@@ -3,7 +3,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from uav.topic_names import TopicNames
 from rclpy.qos import qos_profile_sensor_data
-from custom_interfaces import CamData
+from custom_interfaces.msg import CamData
 import cv_bridge
 import cv2
 import numpy as np
