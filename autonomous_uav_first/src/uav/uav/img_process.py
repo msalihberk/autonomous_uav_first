@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.time import Time
 from sensor_msgs.msg import Image
 from uav.topic_names import TopicNames
 from rclpy.qos import qos_profile_sensor_data
@@ -33,9 +34,13 @@ class UAVImageProcessor(Node):
         msg.height = height
         msg.img_width = img_width
         msg.img_height = img_height
+        msg.header.stamp = self.get_clock().now().to_msg()
+
+        return msg
 
     def empty_data(self):
         msg = self.get_data(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        msg.header.stamp = Time().to_msg()
 
         return msg
 
