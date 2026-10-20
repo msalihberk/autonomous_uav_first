@@ -44,4 +44,13 @@ class UAVImageProcessor(Node):
             cv2.destroyAllWindows()
             exit()
 
-cv2.destroyAllWindows()
+def main(args=None):
+    rclpy.init(args=args)
+
+    node = UAVImageProcessor()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
