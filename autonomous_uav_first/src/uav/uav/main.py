@@ -57,6 +57,10 @@ class MovementServer(py_trees.behaviour.Behaviour):
 
         return py_trees.common.Status.RUNNING
 
+    def terminate(self, new_status):
+        if new_status == py_trees.common.Status.INVALID:
+            self.future = None
+
 class CoordinateServer(py_trees.behaviour.Behaviour):
     def __init__(self):
         super().__init__("CoordinateServer")
@@ -73,6 +77,7 @@ class CoordinateServer(py_trees.behaviour.Behaviour):
 
     def update(self):
         if not self.blackboard.exists('cam_data'):
+            self.node.get_logger().info("No camera data available.")
             return py_trees.common.Status.FAILURE
 
         if self.future is None:
@@ -93,6 +98,7 @@ class CoordinateServer(py_trees.behaviour.Behaviour):
         
         elapsed = (self.node.get_clock().now() - self.start_time).nanoseconds / 1e9
         if elapsed > SERVICE_TIMEOUT_SEC:
+            self.node.get_logger().error(f"Coordinate Service Timeout after {elapsed:.2f} seconds.")
             return py_trees.common.Status.FAILURE
 
         if self.future.done():
@@ -106,6 +112,10 @@ class CoordinateServer(py_trees.behaviour.Behaviour):
                 return py_trees.common.Status.SUCCESS
 
         return py_trees.common.Status.RUNNING
+
+    def terminate(self, new_status):
+        if new_status == py_trees.common.Status.INVALID:
+            self.future = None
         
 
 class DataTimeOutController(py_trees.behaviour.Behaviour):

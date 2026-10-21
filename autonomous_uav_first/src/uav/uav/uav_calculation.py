@@ -88,7 +88,6 @@ class UAVCalculation(Node):
         r = self.quaternion_to_rotation_matrix(drone_q)
         ray_world = np.dot(r, ray_cam)
 
-
         if ray_world[2] >= 0:
             response.success = False
             return response
@@ -110,7 +109,6 @@ class UAVCalculation(Node):
         yaw = self.get_yaw_from_quaternion(self.imu_data.orientation)
         target_x = hypotenuse * math.cos(yaw)
         target_y = hypotenuse * math.sin(yaw)
-
 
         response.target_point.x = target_x
         response.target_point.y = target_y
