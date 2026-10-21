@@ -1,10 +1,11 @@
 from sympy import Quaternion
-
+from sensor_msgs.msg import Imu
 import rclpy
 from rclpy.node import Node
-from custom_interfaces.msg import CamData
+from custom_interfaces.srv import Coordinate
 from uav.topic_names import TopicNames
 from rclpy.qos import qos_profile_sensor_data
+from geometry_msgs.msg import PoseStamped
 import numpy as np
 import math
 
@@ -12,11 +13,41 @@ class UAVCalculation(Node):
     def __init__(self):
         super().__init__("UAVCalculation")
 
-        self.coordinate_service = self.create_service(CamData, TopicNames.COORDINATE_CAL_TOPIC, 
-                                                      self.calculate_coordinate, qos_profile_sensor_data)
-
+        self.coordinate_service = self.create_service(Coordinate, TopicNames.COORDINATE_CAL_TOPIC, self.calculate_coordinate)
+    
         self.fov_horizontal = 1.047
         self.fov_vertical = 1.047 # Temporary value
+
+        self.pos_subscripter = self.create_subscription(
+            PoseStamped,
+            "/mavros/local_position/pose",
+            self.save_local_pos,
+            qos_profile=qos_profile_sensor_data
+        )
+
+        self.imu_subscripter = self.create_subscription(
+            Imu,
+            "/mavros/imu/data",
+            self.save_imu_data,
+            qos_profile=qos_profile_sensor_data
+        )
+
+        self.imu_data = Imu()
+        self.local_pos = PoseStamped()
+
+    def save_local_pos(self, msg):
+        self.local_pos = msg
+
+    def save_imu_data(self, msg):
+        self.imu_data = msg
+
+    @staticmethod
+    def get_yaw_from_quaternion(q: Quaternion):
+        x, y, z, w = q.x, q.y, q.z, q.w
+        
+        yaw = np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+        
+        return yaw
 
     @staticmethod
     def quaternion_to_rotation_matrix(q: Quaternion):
@@ -86,10 +117,12 @@ class UAVCalculation(Node):
         response.target_point.z = target_z
         response.success = True
 
+        self.get_logger().info(f"Calculated Target Coordinates: x={target_x}, y={target_y}, z={target_z}")
+
         return response
 
 def main(args=None):
-    rclpy.init(args)
+    rclpy.init(args=args)
 
     node = UAVCalculation()
     rclpy.spin(node)

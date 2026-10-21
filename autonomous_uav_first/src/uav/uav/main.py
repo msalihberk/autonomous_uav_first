@@ -18,24 +18,25 @@ class MovementServer(py_trees.behaviour.Behaviour):
 
         self.blackboard = self.attach_blackboard_client("MovementServer Blackboard")
         self.blackboard.register_key(key="target_coordinates", access=py_trees.common.Access.READ)
-        self.node = Node()
+        self.node = Node("TMP")
+        self.future = None
 
     def setup(self, **kwargs):
         self.node = kwargs['node']
-        self.client = self.node.create_client(CamData, TopicNames.MOVEMENT_TOPIC, qos_profile_sensor_data)
+        self.client = self.node.create_client(MovePoint, TopicNames.MOVEMENT_TOPIC)
 
     def update(self):
         if not self.blackboard.exists('target_coordinates'):
             return py_trees.common.Status.FAILURE
 
         if self.future is None:
-            if self.client.wait_for_service(timeout_sec=0.1):
+            if not self.client.wait_for_service(timeout_sec=0.1):
                 return py_trees.common.Status.RUNNING
 
             data = self.blackboard.get('target_coordinates')
 
             msg = MovePoint.Request()
-            msg.point = data.target_point
+            msg.point = data
 
             self.future = self.client.call_async(msg)
             self.start_time = self.node.get_clock().now()
@@ -63,18 +64,19 @@ class CoordinateServer(py_trees.behaviour.Behaviour):
         self.blackboard = self.attach_blackboard_client("CoordinateServer Blackboard")
         self.blackboard.register_key(key="cam_data", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="target_coordinates", access=py_trees.common.Access.WRITE)
-        self.node = Node()
+        self.node = Node("TMP")
+        self.future = None
         
     def setup(self, **kwargs):
         self.node = kwargs['node']
-        self.client = self.node.create_client(CamData, TopicNames.COORDINATE_CAL_TOPIC, qos_profile_sensor_data)
+        self.client = self.node.create_client(Coordinate, TopicNames.COORDINATE_CAL_TOPIC)
 
     def update(self):
         if not self.blackboard.exists('cam_data'):
             return py_trees.common.Status.FAILURE
 
         if self.future is None:
-            if self.client.wait_for_service(timeout_sec=0.1):
+            if not self.client.wait_for_service(timeout_sec=0.1):
                 return py_trees.common.Status.RUNNING
 
             data = self.blackboard.get('cam_data')
@@ -119,6 +121,7 @@ class DataTimeOutController(py_trees.behaviour.Behaviour):
 
     def update(self):
         if not self.blackboard.exists('cam_data'):
+            self.node.get_logger().info("No camera data available.")
             return py_trees.common.Status.FAILURE
 
         data = self.blackboard.get('cam_data')
@@ -129,6 +132,7 @@ class DataTimeOutController(py_trees.behaviour.Behaviour):
         elapsed_sec = (current_time - msg_time).nanoseconds / 1e9
         
         if elapsed_sec > self.timeout_sec:
+            self.node.get_logger().info(f"Camera data timeout: {elapsed_sec:.2f} seconds elapsed.")
             self.blackboard.unset('cam_data') 
             return py_trees.common.Status.FAILURE
             
@@ -153,7 +157,7 @@ def create_tree():
         name="Movement Sequence",
         memory=False
     )
-    movement_sequence.add_children([DataTimeOutController(), CoordinateServer(), MovementServer()])
+    movement_sequence.add_children([cam_data, DataTimeOutController(), CoordinateServer(), MovementServer()])
 
     root.add_children([movement_sequence])
 

@@ -69,7 +69,7 @@ class UAVImageProcessor(Node):
                 x, y, w, h = cv2.boundingRect(contour)
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 255, 255), 2)
 
-                data_msg = self.get_data(x + w / 2, y - h / 2, w, h, img_height, img_width)
+                data_msg = self.get_data(x + w / 2, y - h / 2, float(w), float(h), float(img_height), float(img_width))
 
         self.data_publisher.publish(data_msg)
 
