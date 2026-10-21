@@ -34,6 +34,7 @@ class UAVCalculation(Node):
 
         self.imu_data = Imu()
         self.local_pos = PoseStamped()
+        self.default_alt = 5.0
 
     def save_local_pos(self, msg):
         self.local_pos = msg
@@ -103,7 +104,7 @@ class UAVCalculation(Node):
 
         target_x = pos.x + float(t * ray_world[0])
         target_y = pos.y + float(t * ray_world[1])
-        target_z = 0.0
+        target_z = self.default_alt
 
         hypotenuse = math.sqrt(target_x ** 2 + target_y ** 2)
         yaw = self.get_yaw_from_quaternion(self.imu_data.orientation)

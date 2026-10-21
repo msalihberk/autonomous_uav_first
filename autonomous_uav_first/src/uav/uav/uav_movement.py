@@ -111,7 +111,7 @@ class UAVMovement(Node):
         self.end_point.pose.position.x = point.x
         self.end_point.pose.position.y = point.y
         self.end_point.pose.position.z = point.z
-        
+
         self.get_logger().info(f"Moving to target: {self.end_point.pose.position.x}, {self.end_point.pose.position.y}, {self.end_point.pose.position.z}")
 
 def main(args=None):
