@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Point
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu
 from custom_interfaces.srv import MovePoint
@@ -48,19 +48,20 @@ class UAVMovement(Node):
         self.is_task_completed = False
 
     def is_pose_empty(self, pose: PoseStamped):
-        return pose.pose.position.x <= 0.1 and pose.pose.position.y <= 0.1 and pose.pose.position.z <= 0.1
+        x_val = pose.pose.position.x <= 0.1 and pose.pose.position.x >= -0.1
+        y_val = pose.pose.position.y <= 0.1 and pose.pose.position.y >= -0.1
+        z_val = pose.pose.position.z <= 0.1 and pose.pose.position.z >= -0.1
+        return not x_val and not y_val and not z_val
 
     def is_local_pos_initialized(self):
         return not self.is_pose_empty(self.local_pos)
 
     def is_ready_to_move(self):
-        return self.is_local_pos_initialized() and not self.is_pose_empty(self.end_point)
+        return self.is_local_pos_initialized() and not self.is_pose_empty(self.end_point) and not self.is_task_completed
 
     def move_callback(self):
         if not self.is_ready_to_move():
             return
-
-        self.get_logger().info(f"Moving to target: {self.end_point.pose.position.x}, {self.end_point.pose.position.y}, {self.end_point.pose.position.z}")
         
         self.end_point.header.stamp = self.get_clock().now().to_msg()
 
@@ -91,23 +92,27 @@ class UAVMovement(Node):
         return sum ** (1/3)
 
     def reached_target(self):
-        return self.calculate_distance(self.local_pos.pose.position, self.end_point.pose.position) <= self.distance
+        return self.calculate_distance(self.local_pos.pose.position, self.end_point.pose.position) <= self.distance and self.is_ready_to_move()
 
     def move_to_target(self, request, response):
         response.success = True
         if self.is_task_completed:
             if self.reached_target():
+                self.get_logger().info(f"Reached target: {self.end_point.pose.position.x}, {self.end_point.pose.position.y}, {self.end_point.pose.position.z}")
                 self.complete_task()
-                
                 return response
-            
+
             self.start_task()
             self.move(request.point)
 
         return response
 
-    def move(self, point: PoseStamped):
-        self.end_point = point
+    def move(self, point: Point):
+        self.end_point.pose.position.x = point.x
+        self.end_point.pose.position.y = point.y
+        self.end_point.pose.position.z = point.z
+        
+        self.get_logger().info(f"Moving to target: {self.end_point.pose.position.x}, {self.end_point.pose.position.y}, {self.end_point.pose.position.z}")
 
 def main(args=None):
     rclpy.init()
