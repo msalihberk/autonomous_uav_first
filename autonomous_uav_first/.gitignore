@@ -2,6 +2,7 @@
 /install
 /.vscode
 /log
+/logs
 /terrain
 eeprom.bin
 mav.parm

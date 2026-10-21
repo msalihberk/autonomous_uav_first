@@ -47,7 +47,21 @@ class UAVMovement(Node):
     def start_task(self):
         self.is_task_completed = False
 
+    def is_pose_empty(self, pose: PoseStamped):
+        return pose.pose.position.x <= 0.1 and pose.pose.position.y <= 0.1 and pose.pose.position.z <= 0.1
+
+    def is_local_pos_initialized(self):
+        return not self.is_pose_empty(self.local_pos)
+
+    def is_ready_to_move(self):
+        return self.is_local_pos_initialized() and not self.is_pose_empty(self.end_point)
+
     def move_callback(self):
+        if not self.is_ready_to_move():
+            return
+
+        self.get_logger().info(f"Moving to target: {self.end_point.pose.position.x}, {self.end_point.pose.position.y}, {self.end_point.pose.position.z}")
+        
         self.end_point.header.stamp = self.get_clock().now().to_msg()
 
         self.pos_publisher.publish(self.end_point)
@@ -77,7 +91,7 @@ class UAVMovement(Node):
         return sum ** (1/3)
 
     def reached_target(self):
-        return self.calculate_distance(self.local_pos, self.end_point) <= self.distance
+        return self.calculate_distance(self.local_pos.pose.position, self.end_point.pose.position) <= self.distance
 
     def move_to_target(self, request, response):
         response.success = True
