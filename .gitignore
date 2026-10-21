@@ -1,8 +1,8 @@
-*/build
-*/install
-*/.vscode
-*/log
-*/terrain
+build/
+install/
+.vscode/
+log/
+terrain/
 eeprom.bin
 mav.parm
 mav.tlog
