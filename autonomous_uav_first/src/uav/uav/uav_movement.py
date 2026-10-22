@@ -52,10 +52,10 @@ class UAVMovement(Node):
         self.imu_data = Imu()
 
         self.is_task_completed = True
-        self.has_target = False
 
     def control_target(self, msg: CamData):
-        if msg.img_width <= 1.0:
+        if msg.img_width <= 1.0 and self.is_task_completed:
+            self.get_logger().info("Target lost or out of view.")
             self.stop()
 
     def set_angle(self, request, response):
@@ -70,18 +70,22 @@ class UAVMovement(Node):
 
     def complete_task(self):
         self.is_task_completed = True
-        self.has_target = False
 
     def start_task(self):
         self.get_logger().info("Starting movement task...")
         self.is_task_completed = False
-        self.has_target = True
+
+    def is_empty_point(self, point: Point):
+        x_val = point.x <= 0.1 and point.x >= -0.1
+        y_val = point.y <= 0.1 and point.y >= -0.1
+        z_val = point.z <= 0.1 and point.z >= -0.1
+        return x_val and y_val and z_val
 
     def is_local_pos_initialized(self):
         return self.local_pos.header.stamp.sec > 0 or self.local_pos.header.stamp.nanosec > 0
 
     def is_ready_to_move(self):
-        return self.is_local_pos_initialized() and self.has_target and not self.is_task_completed
+        return self.is_local_pos_initialized() and not self.is_empty_point(self.end_point.pose.position) and not self.is_task_completed
 
     def move_callback(self):
         if not self.is_ready_to_move():
@@ -130,6 +134,10 @@ class UAVMovement(Node):
         self.complete_task()
     
     def move_to_target(self, request, response):
+        if self.is_empty_point(request.point):
+            response.success = False
+            return response
+        
         self.move(request.point)
         self.start_task()
         response.success = True

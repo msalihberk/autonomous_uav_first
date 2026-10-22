@@ -37,6 +37,7 @@ class UAVCalculation(Node):
         self.local_pos = PoseStamped()
         self.default_alt = 5.0
         self.distance = 5.0
+        self.max_range = 20.0
 
     def save_local_pos(self, msg):
         self.local_pos = msg
@@ -73,34 +74,37 @@ class UAVCalculation(Node):
         y_cam = (request.center_y - (request.img_height / 2.0)) / fy
         z_cam = 1.0
 
-        vector_raw = np.array([z_cam, x_cam, y_cam])
-        ray_cam = vector_raw / np.linalg.norm(vector_raw)
+        ray_cam = np.array([z_cam, -x_cam, -y_cam])
+        ray_cam /= np.linalg.norm(ray_cam)
+
+        th = 0.5
+        R_body_cam = np.array([
+            [ np.cos(th), 0.0, np.sin(th)],
+            [ 0.0,        1.0, 0.0       ],
+            [-np.sin(th), 0.0, np.cos(th)],
+        ])
 
         drone_q = self.imu_data.orientation
         r = MathFuncs.quaternion_to_rotation_matrix(drone_q)
-        ray_world = np.dot(r, ray_cam)
 
-        if ray_world[2] >= 0:
-            response.success = False
-            return response
+        ray_body = R_body_cam @ ray_cam
+        ray_world = r @ ray_body
 
         pos = self.local_pos.pose.position
         
         t = -pos.z / ray_world[2]
-
-        if t < 0:
+        if t < 0 or t > self.max_range:
             response.success = False
             return response
 
+        MIN_DEPRESSION = np.deg2rad(5.0)
+        if ray_world[2] > -np.sin(MIN_DEPRESSION):
+            response.success = False
+            return response
 
         target_x = pos.x + float(t * ray_world[0])
         target_y = pos.y + float(t * ray_world[1])
         target_z = self.default_alt
-
-        hypotenuse = math.sqrt(target_x ** 2 + target_y ** 2)
-        yaw = MathFuncs.get_yaw_from_quaternion(self.imu_data.orientation)
-        target_x = hypotenuse * math.cos(yaw)
-        target_y = hypotenuse * math.sin(yaw)
 
         response.target_point.x = target_x
         response.target_point.y = target_y
