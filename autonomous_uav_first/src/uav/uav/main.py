@@ -8,6 +8,7 @@ from uav.topic_names import TopicNames
 from custom_interfaces.msg import CamData
 from custom_interfaces.srv import Coordinate, MovePoint
 from rclpy.qos import qos_profile_sensor_data
+from std_msgs.msg import Bool
 from rclpy.time import Time
 from custom_interfaces.srv import Float64
 
@@ -222,6 +223,36 @@ class CoordinateServer(py_trees.behaviour.Behaviour):
     def terminate(self, new_status):
         if new_status == py_trees.common.Status.INVALID:
             self.future = None
+
+class Idle(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super().__init__("IdleServer")
+        self.blackboard = self.attach_blackboard_client("Timeout Blackboard")
+        self.blackboard.register_key(key="cam_data", access=py_trees.common.Access.READ)
+        self.node = Node("TMP")
+        
+    def setup(self, **kwargs):
+        self.node = kwargs['node']
+        self.client = self.node.create_publisher(Bool, TopicNames.IDLE_MODE_TOPIC, qos_profile_sensor_data)
+        self.sent = False
+
+    def update(self):
+        if self.sent:
+            return py_trees.common.Status.RUNNING
+        
+        self.sent = True
+        msg = Bool()
+        msg.data = True
+        self.client.publish(msg)
+        
+        return py_trees.common.Status.RUNNING
+
+    def terminate(self, new_status):
+        if new_status == py_trees.common.Status.INVALID or new_status == py_trees.common.Status.SUCCESS:
+            msg = Bool()
+            msg.data = False
+            self.sent = False
+            self.client.publish(msg)
         
 
 class DataTimeOutController(py_trees.behaviour.Behaviour):
@@ -275,7 +306,7 @@ def create_tree():
     )
     movement_sequence.add_children([cam_data, DataTimeOutController(), CoordinateServer(), AngleCalculationServer(), SetYawService(), MovementServer()])
 
-    root.add_children([movement_sequence])
+    root.add_children([movement_sequence, Idle()])
 
     return root
 

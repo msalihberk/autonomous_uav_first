@@ -27,7 +27,8 @@ setup(
             'img = uav.img_process:main',
             'move = uav.uav_movement:main',
             'cal = uav.uav_calculation:main',
-            'main = uav.main:main'
+            'main = uav.main:main',
+            'idle = uav.idle:main'
         ],
     },
 )
