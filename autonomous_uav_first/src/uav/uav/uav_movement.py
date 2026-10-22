@@ -120,7 +120,10 @@ class UAVMovement(Node):
         return (xq + yq + zq) ** 0.5
 
     def reached_target(self):
-        return self.calculate_distance(self.local_pos.pose.position, self.end_point.pose.position) <= self.distance
+        return self.reached_position(self.end_point.pose.position)
+
+    def reached_position(self, position: Point):
+        return self.calculate_distance(self.local_pos.pose.position, position) <= self.distance
 
     def stop(self):
         if self.is_task_completed: 
@@ -134,7 +137,7 @@ class UAVMovement(Node):
         self.complete_task()
     
     def move_to_target(self, request, response):
-        if self.is_empty_point(request.point):
+        if not self.is_task_completed or self.reached_position(request.point) or self.is_empty_point(request.point):
             response.success = False
             return response
         
