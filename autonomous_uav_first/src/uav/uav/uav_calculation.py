@@ -1,4 +1,3 @@
-from sympy import Quaternion
 from sensor_msgs.msg import Imu
 import rclpy
 from rclpy.node import Node
@@ -6,6 +5,7 @@ from custom_interfaces.srv import Coordinate
 from uav.topic_names import TopicNames
 from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import PoseStamped
+from uav.math_funcs import MathFuncs
 import numpy as np
 import math
 
@@ -14,6 +14,7 @@ class UAVCalculation(Node):
         super().__init__("UAVCalculation")
 
         self.coordinate_service = self.create_service(Coordinate, TopicNames.COORDINATE_CAL_TOPIC, self.calculate_coordinate)
+        self.angle_service = self.create_service(Coordinate, TopicNames.ANGLE_CAL_TOPIC, self.calculate_angle)
     
         self.fov_horizontal = 1.047
         self.fov_vertical = 1.047 # Temporary value
@@ -35,6 +36,7 @@ class UAVCalculation(Node):
         self.imu_data = Imu()
         self.local_pos = PoseStamped()
         self.default_alt = 5.0
+        self.distance = 5.0
 
     def save_local_pos(self, msg):
         self.local_pos = msg
@@ -42,34 +44,23 @@ class UAVCalculation(Node):
     def save_imu_data(self, msg):
         self.imu_data = msg
 
-    @staticmethod
-    def get_yaw_from_quaternion(q: Quaternion):
-        x, y, z, w = q.x, q.y, q.z, q.w
-        
-        yaw = np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
-        
-        return yaw
+    
 
-    @staticmethod
-    def quaternion_to_rotation_matrix(q: Quaternion):
-        x, y, z, w = q.x, q.y, q.z, q.w
-        xx = x * x
-        yy = y * y
-        zz = z * z
-        xy = x * y
-        xz = x * z
-        yz = y * z
-        wx = w * x
-        wy = w * y
-        wz = w * z
+    def calculate_angle(self, request, response):
+        try:
+            pixel_error = (request.center_x) - (request.img_width / 2.0)
 
-        R = np.array([
-            [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy)],
-            [2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx)],
-            [2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy)]
-        ])
+            angle = pixel_error / request.img_width * self.fov_horizontal
+            # For ardupilot axis rule (Left + ,Right -)
+            angle *= -1
 
-        return R
+            response.success = True
+            response.angle = angle
+
+        except:
+            pass
+
+        return response
 
     def calculate_coordinate(self, request, response):
         aspect_ratio = request.img_width / request.img_height
@@ -86,7 +77,7 @@ class UAVCalculation(Node):
         ray_cam = vector_raw / np.linalg.norm(vector_raw)
 
         drone_q = self.imu_data.orientation
-        r = self.quaternion_to_rotation_matrix(drone_q)
+        r = MathFuncs.quaternion_to_rotation_matrix(drone_q)
         ray_world = np.dot(r, ray_cam)
 
         if ray_world[2] >= 0:
@@ -107,7 +98,7 @@ class UAVCalculation(Node):
         target_z = self.default_alt
 
         hypotenuse = math.sqrt(target_x ** 2 + target_y ** 2)
-        yaw = self.get_yaw_from_quaternion(self.imu_data.orientation)
+        yaw = MathFuncs.get_yaw_from_quaternion(self.imu_data.orientation)
         target_x = hypotenuse * math.cos(yaw)
         target_y = hypotenuse * math.sin(yaw)
 

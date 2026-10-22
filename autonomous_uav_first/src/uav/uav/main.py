@@ -9,8 +9,114 @@ from custom_interfaces.msg import CamData
 from custom_interfaces.srv import Coordinate, MovePoint
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
+from custom_interfaces.srv import Float64
 
 SERVICE_TIMEOUT_SEC = 2.0
+
+class SetYawService(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super().__init__("SetYawService")
+
+        self.blackboard = self.attach_blackboard_client("SetYawService Blackboard")
+        self.blackboard.register_key(key="angle", access=py_trees.common.Access.READ)
+        self.node = Node("TMP")
+        self.future = None
+
+    def setup(self, **kwargs):
+        self.node = kwargs['node']
+        self.client = self.node.create_client(Float64, TopicNames.SET_YAW_TOPIC)
+
+    def update(self):
+        if not self.blackboard.exists('angle'):
+            return py_trees.common.Status.FAILURE
+
+        if self.future is None:
+            if not self.client.wait_for_service(timeout_sec=0.1):
+                return py_trees.common.Status.RUNNING
+
+            data = self.blackboard.get('angle')
+
+            msg = Float64.Request()
+            msg.data = data
+
+            self.future = self.client.call_async(msg)
+            self.start_time = self.node.get_clock().now()
+            return py_trees.common.Status.RUNNING
+        
+        elapsed = (self.node.get_clock().now() - self.start_time).nanoseconds / 1e9
+        if elapsed > SERVICE_TIMEOUT_SEC:
+            return py_trees.common.Status.FAILURE
+
+        if self.future.done():
+            try:
+                response = self.future.result()
+            except Exception as e:
+                self.node.get_logger().error(f"SetYaw Service Error: {e}")
+                return py_trees.common.Status.FAILURE
+            else:
+                return py_trees.common.Status.SUCCESS
+
+        return py_trees.common.Status.RUNNING
+
+    def terminate(self, new_status):
+        if new_status == py_trees.common.Status.INVALID:
+            self.future = None
+
+class AngleCalculationServer(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        super().__init__("AngleCalculationServer")
+
+        self.blackboard = self.attach_blackboard_client("AngleCalculationServer Blackboard")
+        self.blackboard.register_key(key="cam_data", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="angle", access=py_trees.common.Access.WRITE)
+        self.node = Node("TMP")
+        self.future = None
+        
+    def setup(self, **kwargs):
+        self.node = kwargs['node']
+        self.client = self.node.create_client(Coordinate, TopicNames.ANGLE_CAL_TOPIC)
+
+    def update(self):
+        if not self.blackboard.exists('cam_data'):
+            self.node.get_logger().info("No camera data available.")
+            return py_trees.common.Status.FAILURE
+
+        if self.future is None:
+            if not self.client.wait_for_service(timeout_sec=0.1):
+                return py_trees.common.Status.RUNNING
+
+            data = self.blackboard.get('cam_data')
+
+            msg = Coordinate.Request()
+            msg.img_width = data.img_width
+            msg.img_height = data.img_height
+            msg.center_x = data.center_x
+            msg.center_y = data.center_y
+
+            self.future = self.client.call_async(msg)
+            self.start_time = self.node.get_clock().now()
+            return py_trees.common.Status.RUNNING
+        
+        elapsed = (self.node.get_clock().now() - self.start_time).nanoseconds / 1e9
+        if elapsed > SERVICE_TIMEOUT_SEC:
+            self.node.get_logger().error(f"Angle Calculation Service Timeout after {elapsed:.2f} seconds.")
+            return py_trees.common.Status.FAILURE
+
+        if self.future.done():
+            try:
+                response = self.future.result()
+            except Exception as e:
+                self.node.get_logger().error(f"Angle Calculation Service Error: {e}")
+                return py_trees.common.Status.FAILURE
+            else:
+                self.blackboard.set('angle', response.angle) 
+                return py_trees.common.Status.SUCCESS
+
+        return py_trees.common.Status.RUNNING
+
+    def terminate(self, new_status):
+        if new_status == py_trees.common.Status.INVALID:
+            self.future = None
 
 class MovementServer(py_trees.behaviour.Behaviour):
     def __init__(self):
@@ -167,7 +273,7 @@ def create_tree():
         name="Movement Sequence",
         memory=False
     )
-    movement_sequence.add_children([cam_data, DataTimeOutController(), CoordinateServer(), MovementServer()])
+    movement_sequence.add_children([cam_data, DataTimeOutController(), CoordinateServer(), AngleCalculationServer(), SetYawService(), MovementServer()])
 
     root.add_children([movement_sequence])
 
